@@ -17,9 +17,7 @@
 
 #include <X11/Xlib.h>
 
-char *tzargentina = "America/Buenos_Aires";
-char *tzutc = "UTC";
-char *tzberlin = "Europe/Berlin";
+char *tzeastern = "US/Eastern";
 
 static Display *dpy;
 
@@ -82,17 +80,6 @@ setstatus(char *str)
 }
 
 char *
-loadavg(void)
-{
-	double avgs[3];
-
-	if (getloadavg(avgs, 3) < 0)
-		return smprintf("");
-
-	return smprintf("%.2f %.2f %.2f", avgs[0], avgs[1], avgs[2]);
-}
-
-char *
 readfile(char *base, char *file)
 {
 	char *path, line[513];
@@ -113,57 +100,6 @@ readfile(char *base, char *file)
 	fclose(fd);
 
 	return smprintf("%s", line);
-}
-
-char *
-getbattery(char *base)
-{
-	char *co, status;
-	int descap, remcap;
-
-	descap = -1;
-	remcap = -1;
-
-	co = readfile(base, "present");
-	if (co == NULL)
-		return smprintf("");
-	if (co[0] != '1') {
-		free(co);
-		return smprintf("not present");
-	}
-	free(co);
-
-	co = readfile(base, "charge_full_design");
-	if (co == NULL) {
-		co = readfile(base, "energy_full_design");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &descap);
-	free(co);
-
-	co = readfile(base, "charge_now");
-	if (co == NULL) {
-		co = readfile(base, "energy_now");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &remcap);
-	free(co);
-
-	co = readfile(base, "status");
-	if (!strncmp(co, "Discharging", 11)) {
-		status = '-';
-	} else if(!strncmp(co, "Charging", 8)) {
-		status = '+';
-	} else {
-		status = '?';
-	}
-
-	if (remcap < 0 || descap < 0)
-		return smprintf("invalid");
-
-	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100, status);
 }
 
 char *
@@ -202,46 +138,24 @@ int
 main(void)
 {
 	char *status;
-	char *avgs;
-	char *bat;
-	char *tmar;
-	char *tmutc;
-	char *tmbln;
+	char *tmes;
 	char *t0;
-	char *t1;
-	char *kbmap;
-	char *surfs;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
 
-	for (;;sleep(30)) {
-		avgs = loadavg();
-		bat = getbattery("/sys/class/power_supply/BAT0");
-		tmar = mktimes("%H:%M", tzargentina);
-		tmutc = mktimes("%H:%M", tzutc);
-		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzberlin);
-		kbmap = execscript("setxkbmap -query | grep layout | cut -d':' -f 2- | tr -d ' '");
-		surfs = execscript("surf-status");
+	for (;;sleep(1)) {
+		tmes = mktimes("%a %b %d %Y %H:%M:%S", tzeastern);
 		t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
-		t1 = gettemperature("/sys/devices/virtual/thermal/thermal_zone1", "temp");
 
-		status = smprintf("S:%s K:%s T:%s|%s L:%s B:%s A:%s U:%s %s",
-				surfs, kbmap, t0, t1, avgs, bat, tmar, tmutc,
-				tmbln);
+		status = smprintf("T:%s %s",
+  		  		t0, tmes);
 		setstatus(status);
 
-		free(surfs);
-		free(kbmap);
 		free(t0);
-		free(t1);
-		free(avgs);
-		free(bat);
-		free(tmar);
-		free(tmutc);
-		free(tmbln);
+		free(tmes);
 		free(status);
 	}
 
